@@ -85,13 +85,13 @@ func GET_sale_by_id(c *fiber.Ctx) error {
 	for rows.Next() {
 		var sale models.Sale
 		err := rows.Scan(
-			&sale.Id,
-			&sale.Employee_id,
-			&sale.Customer_id,
-			&sale.Product_id,
+			&sale.ID,
+			&sale.EmployeeID,
+			&sale.CustomerID,
+			&sale.ProductID,
 			&sale.Quantity,
 			&sale.TotalPrice,
-			&sale.Sale_date,
+			&sale.SaleDate,
 		)
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
@@ -100,13 +100,13 @@ func GET_sale_by_id(c *fiber.Ctx) error {
 		}
 
 		sales = append(sales, fiber.Map{
-			"id":          sale.Id,
-			"employee_id": sale.Employee_id,
-			"customer_id": sale.Customer_id,
-			"product_id":  sale.Product_id,
+			"id":          sale.ID,
+			"employee_id": sale.EmployeeID,
+			"customer_id": sale.CustomerID,
+			"product_id":  sale.ProductID,
 			"quantity":    sale.Quantity,
 			"total_price": sale.TotalPrice,
-			"sale_date":   sale.Sale_date,
+			"sale_date":   sale.SaleDate,
 		})
 	}
 
