@@ -24,6 +24,7 @@ func main() {
 
 		return c.Next()
 	})
+	app.Static("/static", "./static")
 	routes.RegisterRoutes(app)
 
 	app.Listen(":8080")

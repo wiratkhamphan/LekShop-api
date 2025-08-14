@@ -2,13 +2,14 @@ package routes
 
 import (
 	"dog/controllers"
+	"dog/controllers/popular"
 
 	"github.com/gofiber/fiber/v2"
 )
 
 func RegisterRoutes(app *fiber.App) {
 
-	//report_sale
+	//pos
 	app.Post("/sales", controllers.CreateSale)
 	app.Get("/sales", controllers.GetSales)
 	app.Get("/sales/:sale_id", controllers.GetSaleByID)
@@ -34,5 +35,10 @@ func RegisterRoutes(app *fiber.App) {
 	app.Get("/customers", controllers.GetCustomers)
 	app.Get("/customers/:UseID", controllers.GetCustomerByID)
 	app.Put("/customers/:customer_id", controllers.UpdateCustomer)
+
+	//hero-slider
+	app.Get("/hero-slider", popular.Popular)
+	app.Post("/hero-slider", popular.AddPopular)
+	app.Put("/hero-slider/:slider_id", popular.UpdatePopular)
 
 }
