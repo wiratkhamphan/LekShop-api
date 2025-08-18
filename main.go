@@ -13,7 +13,8 @@ func main() {
 	// Setup CORS middleware
 	app.Use(func(c *fiber.Ctx) error {
 		c.Set("Access-Control-Allow-Origin", "*")
-		c.Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+
+		c.Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH")
 		c.Set("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
 		c.Set("Access-Control-Allow-Credentials", "true")
 

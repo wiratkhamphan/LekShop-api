@@ -25,11 +25,16 @@ func RegisterRoutes(app *fiber.App) {
 	// Logib
 	app.Post("/Login", controllers.Login)
 
-	//stock
+	// Stock & Products
 	app.Get("/stock", controllers.GetStock)
 	app.Post("/stock", controllers.AddStock)
-	app.Put("/stock/:product_id", controllers.UpdateStockQuantity)
+	app.Put("/stock/:product_id", controllers.UpdateStock)
+	app.Patch("/stock/:product_id/quantity", controllers.UpdateStockQuantity)
+	app.Delete("/stock/:product_id", controllers.DeleteStock)
 
+	// Recommended Products
+	app.Get("/products/recommended", controllers.GetRecommendedProducts)
+	app.Patch("/products/:product_id/recommended", controllers.UpdateRecommended)
 	//customers
 	app.Post("/customers", controllers.CreateCustomer)
 	app.Get("/customers", controllers.GetCustomers)
