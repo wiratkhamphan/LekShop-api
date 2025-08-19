@@ -24,21 +24,23 @@ func RegisterRoutes(app *fiber.App) {
 
 	// Logib
 	app.Post("/Login", controllers.Login)
+	app.Post("/LoginCustomer", controllers.LoginCustomer)
 
 	// Stock & Products
-	app.Get("/stock", controllers.GetStock)
-	app.Post("/stock", controllers.AddStock)
-	app.Put("/stock/:product_id", controllers.UpdateStock)
-	app.Patch("/stock/:product_id/quantity", controllers.UpdateStockQuantity)
-	app.Delete("/stock/:product_id", controllers.DeleteStock)
+	app.Get("/product", controllers.GetStock)
+	app.Post("/product", controllers.AddStock)
+	app.Put("/product/:product_id", controllers.UpdateStock)
+	app.Patch("/product/:product_id/quantity", controllers.UpdateStockQuantity)
+	app.Delete("/product/:product_id", controllers.DeleteStock)
 
 	// Recommended Products
 	app.Get("/products/recommended", controllers.GetRecommendedProducts)
 	app.Patch("/products/:product_id/recommended", controllers.UpdateRecommended)
+
 	//customers
 	app.Post("/customers", controllers.CreateCustomer)
 	app.Get("/customers", controllers.GetCustomers)
-	app.Get("/customers/:UseID", controllers.GetCustomerByID)
+	app.Get("/customers/:customer_id", controllers.GetCustomerByID)
 	app.Put("/customers/:customer_id", controllers.UpdateCustomer)
 
 	//hero-slider

@@ -60,7 +60,7 @@ func AddPopular(c *fiber.Ctx) error {
 	}
 
 	// บันทึกไฟล์ไป static folder
-	savePath := "./static/images/" + file.Filename
+	savePath := "./static/images/slider/" + file.Filename
 	if err := c.SaveFile(file, savePath); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -70,7 +70,7 @@ func AddPopular(c *fiber.Ctx) error {
 		context.Background(),
 		"INSERT INTO popular_items (slider_id, image_path, alt) VALUES ($1, $2, $3)",
 		1, // slider_id
-		"/images/"+file.Filename,
+		"/images/slider/"+file.Filename,
 		alt,
 	)
 	if err != nil {

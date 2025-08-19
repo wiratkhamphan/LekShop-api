@@ -64,11 +64,11 @@ func AddStock(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Image is required"})
 	}
 	fileName := fmt.Sprintf("%d_%s", time.Now().Unix(), file.Filename)
-	savePath := "./static/images/" + fileName
+	savePath := "./static/images/products/" + fileName
 	if err := c.SaveFile(file, savePath); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
-	imagePath := "/static/images/" + fileName
+	imagePath := "/static/images/products/" + fileName
 
 	// UPSERT
 	_, err = db.Exec(context.Background(),
