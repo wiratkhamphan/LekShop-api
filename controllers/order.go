@@ -80,7 +80,7 @@ func CreateOrder(c *fiber.Ctx) error {
 		)
 		row := tx.QueryRow(ctx, `
 			SELECT name, quantity, sell_price
-			FROM stock
+			FROM products
 			WHERE product_id = $1
 			FOR UPDATE
 		`, it.ProductID)
@@ -102,7 +102,7 @@ func CreateOrder(c *fiber.Ctx) error {
 			Name:      name,
 			Price:     sellPrice,
 			Qty:       it.Quantity,
-			Variant:   it.Variant,
+			Variant:   *it.Variant,
 			Line:      line,
 		})
 	}

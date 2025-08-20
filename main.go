@@ -4,28 +4,25 @@ import (
 	"dog/routes"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 )
 
 func main() {
-
 	app := fiber.New()
 
-	// Setup CORS middleware
-	app.Use(func(c *fiber.Ctx) error {
-		c.Set("Access-Control-Allow-Origin", "*")
+	// ✅ CORS: อนุญาตทั้ง
+	app.Use(cors.New(cors.Config{
+		AllowOrigins:     "*",
+		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS,PATCH",
+		AllowHeaders:     "Origin, Content-Type, Authorization, Idempotency-Key, X-Requested-With",
+		AllowCredentials: false, // ถ้าจะใช้คุกกี้ ค่อยเปลี่ยนเป็น true และต้องคง AllowOrigins แบบระบุโดเมน (ห้าม *)
+		// ExposeHeaders:  "X-Request-Id", // ถ้าต้องการอ่าน header ตอบกลับพิเศษให้เพิ่มที่นี่
+	}))
 
-		c.Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH")
-		c.Set("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
-		c.Set("Access-Control-Allow-Credentials", "true")
-
-		if c.Method() == "OPTIONS" {
-			c.SendStatus(fiber.StatusNoContent)
-			return nil
-		}
-
-		return c.Next()
-	})
+	// Static files (ถ้ามี)
 	app.Static("/static", "./static")
+
+	// API routes
 	routes.RegisterRoutes(app)
 
 	app.Listen(":8080")
