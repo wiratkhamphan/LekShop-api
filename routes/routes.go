@@ -3,6 +3,7 @@ package routes
 import (
 	"dog/controllers"
 	"dog/controllers/popular"
+	"dog/middleware"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -42,6 +43,13 @@ func RegisterRoutes(app *fiber.App) {
 	app.Get("/customers", controllers.GetCustomers)
 	app.Get("/customers/:customer_id", controllers.GetCustomerByID)
 	app.Put("/customers/:customer_id", controllers.UpdateCustomer)
+
+	// orders
+	app.Post("/orders", middleware.JWTMiddleware, controllers.CreateOrder)
+	app.Get("/orders", controllers.GetOrders)
+	app.Get("/orders/:order_id", controllers.GetOrderByID)
+	app.Put("/orders/:order_id", controllers.UpdateOrder)
+	app.Delete("/orders/:order_id", controllers.DeleteOrder)
 
 	//hero-slider
 	app.Get("/hero-slider", popular.Popular)
