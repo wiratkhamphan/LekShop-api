@@ -7,8 +7,8 @@ type Customer struct {
 	CustomerID string    `json:"customer_id"`
 	FirstName  string    `json:"first_name"`
 	LastName   string    `json:"last_name"`
-	Address    *string   `json:"address"`
-	Phone      *string   `json:"phone"`
+	Address    *string   `json:"address"` // รองรับ NULL
+	Phone      *string   `json:"phone"`   // รองรับ NULL
 	Email      string    `json:"email"`
 	Password   string    `json:"password"`
 	CreatedAt  time.Time `json:"created_at"`
