@@ -43,6 +43,13 @@ func RegisterRoutes(app *fiber.App) {
 	app.Get("/customers/:customer_id", controllers.GetCustomerByID)
 	app.Put("/customers/:customer_id", controllers.UpdateCustomer)
 
+	// orders
+	app.Post("/orders", controllers.CreateOrder)
+	app.Get("/orders", controllers.GetOrders)
+	app.Get("/orders/:order_id", controllers.GetOrderByID)
+	app.Put("/orders/:order_id", controllers.UpdateOrder)
+	app.Delete("/orders/:order_id", controllers.DeleteOrder)
+
 	//hero-slider
 	app.Get("/hero-slider", popular.Popular)
 	app.Post("/hero-slider", popular.AddPopular)
