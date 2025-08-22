@@ -84,24 +84,24 @@ func AddStock(c *fiber.Ctx) error {
 
 	// UPSERT (ถ้า image ไม่ส่ง -> ไม่ทับรูปเดิม)
 	_, err = db.Exec(context.Background(), `
-INSERT INTO products
-  (product_id, name, brand, category, gender, quantity, cost_price, sell_price, original_price, image, recommended, created_at, updated_at)
-VALUES
-  ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now(), now())
-ON CONFLICT (product_id) DO UPDATE
-SET
-  name            = EXCLUDED.name,
-  brand           = EXCLUDED.brand,
-  category        = EXCLUDED.category,
-  gender          = EXCLUDED.gender,
-  quantity        = EXCLUDED.quantity,
-  cost_price      = EXCLUDED.cost_price,
-  sell_price      = EXCLUDED.sell_price,
-  original_price  = EXCLUDED.original_price,
-  image           = COALESCE(EXCLUDED.image, products.image),
-  recommended     = EXCLUDED.recommended,
-  updated_at      = now()
-`,
+		INSERT INTO products
+			(product_id, name, brand, category, gender, quantity, cost_price, sell_price, original_price, image, recommended, created_at, updated_at)
+		VALUES
+			($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now(), now())
+		ON CONFLICT (product_id) DO UPDATE
+		SET
+			name            = EXCLUDED.name,
+			brand           = EXCLUDED.brand,
+			category        = EXCLUDED.category,
+			gender          = EXCLUDED.gender,
+			quantity        = EXCLUDED.quantity,
+			cost_price      = EXCLUDED.cost_price,
+			sell_price      = EXCLUDED.sell_price,
+			original_price  = EXCLUDED.original_price,
+			image           = COALESCE(EXCLUDED.image, products.image),
+			recommended     = EXCLUDED.recommended,
+			updated_at      = now()
+			`,
 		productID, name, brand, category, gender,
 		quantity, costPrice, sellPrice, originalPricePtr, imagePath, recommended,
 	)
