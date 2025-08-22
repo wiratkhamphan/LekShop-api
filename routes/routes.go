@@ -34,6 +34,11 @@ func RegisterRoutes(app *fiber.App) {
 	app.Patch("/product/:product_id/quantity", controllers.UpdateStockQuantity)
 	app.Delete("/product/:product_id", controllers.DeleteStock)
 
+	// Public Product Catalog
+	app.Get("/products", controllers.GetProducts)
+	app.Get("/products/categories", controllers.GetProductFacets)
+	app.Get("/products/:id", controllers.GetProductByID)
+
 	// Recommended Products
 	app.Get("/products/recommended", controllers.GetRecommendedProducts)
 	app.Patch("/products/:product_id/recommended", controllers.UpdateRecommended)

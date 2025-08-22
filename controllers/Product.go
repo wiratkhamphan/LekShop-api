@@ -41,7 +41,7 @@ func GetStock(c *fiber.Ctx) error {
 }
 
 // ====================
-// เพิ่มสินค้า (หรือ UPSERT)
+// เพิ่มสินค้า (หรือ UPSERT) - รองรับ image ไม่บังคับ
 // ====================
 func AddStock(c *fiber.Ctx) error {
 	db, err := condb.DB_Lek()
@@ -50,56 +50,87 @@ func AddStock(c *fiber.Ctx) error {
 	}
 	defer db.Close(context.Background())
 
-	// อ่านค่า form-data
 	productID := c.FormValue("product_id")
 	name := c.FormValue("name")
+	brand := c.FormValue("brand")       // เพิ่มได้ (ไม่บังคับ)
+	category := c.FormValue("category") // เพิ่มได้ (ไม่บังคับ)
+	gender := c.FormValue("gender")     // men|women|unisex (ไม่บังคับ)
+
 	quantity, _ := strconv.Atoi(c.FormValue("quantity"))
 	costPrice, _ := strconv.ParseFloat(c.FormValue("cost_price"), 64)
 	sellPrice, _ := strconv.ParseFloat(c.FormValue("sell_price"), 64)
+
+	// ราคาป้าย (ถ้ามี)
+	var originalPricePtr *float64
+	if op := c.FormValue("original_price"); op != "" {
+		if v, err := strconv.ParseFloat(op, 64); err == nil {
+			originalPricePtr = &v
+		}
+	}
+
 	recommended := c.FormValue("recommended") == "true"
 
-	// จัดการรูปภาพ
-	file, err := c.FormFile("image")
-	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Image is required"})
+	// รูป: "ไม่บังคับ"
+	var imagePath *string
+	if file, err := c.FormFile("image"); err == nil && file != nil {
+		fileName := fmt.Sprintf("%d_%s", time.Now().Unix(), file.Filename)
+		savePath := "./static/images/products/" + fileName
+		if err := c.SaveFile(file, savePath); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		ip := "/static/images/products/" + fileName
+		imagePath = &ip
 	}
-	fileName := fmt.Sprintf("%d_%s", time.Now().Unix(), file.Filename)
-	savePath := "./static/images/products/" + fileName
-	if err := c.SaveFile(file, savePath); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
-	}
-	imagePath := "/static/images/products/" + fileName
 
-	// UPSERT
-	_, err = db.Exec(context.Background(),
-		`INSERT INTO products (product_id, name, quantity, cost_price, sell_price, image, recommended, created_at, updated_at)
-		 VALUES ($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())
-		 ON CONFLICT (product_id) DO UPDATE
-		 SET name=EXCLUDED.name,
-		     quantity=EXCLUDED.quantity,
-		     cost_price=EXCLUDED.cost_price,
-		     sell_price=EXCLUDED.sell_price,
-		     image=EXCLUDED.image,
-		     recommended=EXCLUDED.recommended,
-		     updated_at=NOW()`,
-		productID, name, quantity, costPrice, sellPrice, imagePath, recommended,
+	// UPSERT (ถ้า image ไม่ส่ง -> ไม่ทับรูปเดิม)
+	_, err = db.Exec(context.Background(), `
+INSERT INTO products
+  (product_id, name, brand, category, gender, quantity, cost_price, sell_price, original_price, image, recommended, created_at, updated_at)
+VALUES
+  ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now(), now())
+ON CONFLICT (product_id) DO UPDATE
+SET
+  name            = EXCLUDED.name,
+  brand           = EXCLUDED.brand,
+  category        = EXCLUDED.category,
+  gender          = EXCLUDED.gender,
+  quantity        = EXCLUDED.quantity,
+  cost_price      = EXCLUDED.cost_price,
+  sell_price      = EXCLUDED.sell_price,
+  original_price  = EXCLUDED.original_price,
+  image           = COALESCE(EXCLUDED.image, products.image),
+  recommended     = EXCLUDED.recommended,
+  updated_at      = now()
+`,
+		productID, name, brand, category, gender,
+		quantity, costPrice, sellPrice, originalPricePtr, imagePath, recommended,
 	)
-
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Insert failed: " + err.Error()})
 	}
 
 	product := models.Product{
-		ProductID:   productID,
-		Name:        name,
-		Quantity:    quantity,
-		CostPrice:   costPrice,
-		SellPrice:   sellPrice,
-		Image:       imagePath,
-		Recommended: recommended,
+		ProductID:     productID,
+		Name:          name,
+		Brand:         brand,
+		Category:      category,
+		Gender:        gender,
+		Quantity:      quantity,
+		CostPrice:     costPrice,
+		SellPrice:     sellPrice,
+		OriginalPrice: originalPricePtr,
+		Image:         deref(imagePath),
+		Recommended:   recommended,
 	}
 
-	return c.JSON(fiber.Map{"message": "Product added successfully", "product": product})
+	return c.JSON(fiber.Map{"message": "Product added/updated", "product": product})
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // ====================
