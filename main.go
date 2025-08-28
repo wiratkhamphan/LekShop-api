@@ -1,6 +1,10 @@
 package main
 
 import (
+	"log"
+	"os"
+	"strings"
+
 	"dog/routes"
 
 	"github.com/gofiber/fiber/v2"
@@ -10,20 +14,23 @@ import (
 func main() {
 	app := fiber.New()
 
-	// ✅ CORS: อนุญาตทั้ง
+	allow := os.Getenv("ALLOW_ORIGINS")
+	if strings.TrimSpace(allow) == "" {
+		// ค่า default สำหรับ dev
+		allow = "http://127.0.0.1:5500,http://localhost:5500,http://localhost:3000"
+	}
+
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     "*",
-		AllowMethods:     "GET,POST,PUT,DELETE,OPTIONS,PATCH",
-		AllowHeaders:     "Origin, Content-Type, Authorization, Idempotency-Key, X-Requested-With",
-		AllowCredentials: false, // ถ้าจะใช้คุกกี้ ค่อยเปลี่ยนเป็น true และต้องคง AllowOrigins แบบระบุโดเมน (ห้าม *)
-		// ExposeHeaders:  "X-Request-Id", // ถ้าต้องการอ่าน header ตอบกลับพิเศษให้เพิ่มที่นี่
+		AllowOrigins:     allow, // คั่นด้วย comma
+		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
+		ExposeHeaders:    "Set-Cookie",
+		AllowCredentials: true,
 	}))
 
-	// Static files (ถ้ามี)
 	app.Static("/static", "./static")
 
-	// API routes
 	routes.RegisterRoutes(app)
 
-	app.Listen(":8080")
+	log.Fatal(app.Listen(":8080"))
 }
