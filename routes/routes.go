@@ -41,7 +41,7 @@ func RegisterRoutes(app *fiber.App) {
 	app.Delete("/orders/:order_id", controllers.DeleteOrder)
 
 	// ===== Admin/Backoffice API Group =====
-	admin := app.Group("/admin", middleware.JWTMiddleware)
+	admin := app.Group("/admin")
 
 	// Stock & Products (หลังบ้าน)
 	admin.Get("/product", controllers.GetStock)
