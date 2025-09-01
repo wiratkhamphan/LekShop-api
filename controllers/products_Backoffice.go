@@ -3,8 +3,11 @@ package controllers
 import (
 	"context"
 	"dog/condb"
+	"dog/models"
+	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -16,7 +19,7 @@ type ProductPublic struct {
 	Brand           string   `json:"brand,omitempty"`
 	Category        string   `json:"category,omitempty"`
 	Gender          string   `json:"gender,omitempty"`
-	Price           float64  `json:"price"` // = sell_price
+	Price           float64  `json:"price"`
 	OriginalPrice   *float64 `json:"original_price,omitempty"`
 	DiscountPercent int      `json:"discount_percent"`
 	Image           string   `json:"image,omitempty"`
@@ -32,7 +35,225 @@ type ProductsListResp struct {
 	Limit int             `json:"limit"`
 }
 
+// ====================
+// เพิ่มสินค้าใหม่ (หรือแก้ไขถ้ามี product_id เดิม)
+// ====================
+func AddStock(c *fiber.Ctx) error {
+	db, err := condb.DB_Lek()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to connect database"})
+	}
+	defer db.Close(context.Background())
+
+	productID := c.FormValue("product_id")
+	name := c.FormValue("name")
+	brand := c.FormValue("brand")
+	category := c.FormValue("category")
+	gender := c.FormValue("gender")
+
+	quantity, _ := strconv.Atoi(c.FormValue("quantity"))
+	costPrice, _ := strconv.ParseFloat(c.FormValue("cost_price"), 64)
+	sellPrice, _ := strconv.ParseFloat(c.FormValue("sell_price"), 64)
+
+	// ราคาปกติ: "ไม่บังคับ"
+	var originalPricePtr *float64
+	if op := c.FormValue("original_price"); op != "" {
+		if v, err := strconv.ParseFloat(op, 64); err == nil {
+			originalPricePtr = &v
+		}
+	}
+
+	recommended := c.FormValue("recommended") == "true"
+
+	// อัปโหลดรูป (ถ้ามี)
+	var imagePath *string
+	if file, err := c.FormFile("image"); err == nil && file != nil {
+		fileName := fmt.Sprintf("%d_%s", time.Now().Unix(), file.Filename)
+		savePath := "./static/images/products/" + fileName
+		if err := c.SaveFile(file, savePath); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
+		}
+		ip := "/static/images/products/" + fileName
+		imagePath = &ip
+	}
+
+	// Insert or Update
+	_, err = db.Exec(context.Background(), `
+		INSERT INTO products
+			(product_id, name, brand, category, gender, quantity, cost_price, sell_price, original_price, image, recommended, created_at, updated_at)
+		VALUES
+			($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11, now(), now())
+		ON CONFLICT (product_id) DO UPDATE
+		SET
+			name            = EXCLUDED.name,
+			brand           = EXCLUDED.brand,
+			category        = EXCLUDED.category,
+			gender          = EXCLUDED.gender,
+			quantity        = EXCLUDED.quantity,
+			cost_price      = EXCLUDED.cost_price,
+			sell_price      = EXCLUDED.sell_price,
+			original_price  = EXCLUDED.original_price,
+			image           = COALESCE(EXCLUDED.image, products.image),
+			recommended     = EXCLUDED.recommended,
+			updated_at      = now()
+			`,
+		productID, name, brand, category, gender,
+		quantity, costPrice, sellPrice, originalPricePtr, imagePath, recommended,
+	)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Insert failed: " + err.Error()})
+	}
+	// แปลง string เป็น *string (nil ถ้าว่าง)
+	toPtr := func(s string) *string {
+		if s == "" {
+			return nil
+		}
+		return &s
+	}
+
+	product := models.Product{
+		ProductID:     productID,
+		Name:          name,
+		Brand:         toPtr(brand),
+		Category:      toPtr(category),
+		Gender:        toPtr(gender),
+		Quantity:      quantity,
+		CostPrice:     &costPrice,
+		SellPrice:     sellPrice,
+		OriginalPrice: originalPricePtr,
+		Image:         imagePath,
+		Recommended:   recommended,
+	}
+
+	return c.JSON(fiber.Map{"message": "Product added/updated", "product": product})
+}
+
+// ====================
+// แก้ไขข้อมูลสินค้า
+// ====================
+func UpdateStock(c *fiber.Ctx) error {
+	db, err := condb.DB_Lek()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to connect database"})
+	}
+	defer db.Close(context.Background())
+
+	productID := c.Params("product_id")
+	var input struct {
+		Name        string  `json:"name"`
+		Quantity    int     `json:"quantity"`
+		CostPrice   float64 `json:"cost_price"`
+		SellPrice   float64 `json:"sell_price"`
+		Recommended bool    `json:"recommended"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	_, err = db.Exec(context.Background(),
+		`UPDATE products
+		 SET name=$1, quantity=$2, cost_price=$3, sell_price=$4, recommended=$5, updated_at=NOW()
+		 WHERE product_id=$6`,
+		input.Name, input.Quantity, input.CostPrice, input.SellPrice, input.Recommended, productID,
+	)
+
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Update failed"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Product updated", "productID": productID})
+}
+
+// ====================
+// แก้ไขจำนวนสินค้า (stock quantity)
+// ====================
+func UpdateStockQuantity(c *fiber.Ctx) error {
+	db, err := condb.DB_Lek()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to connect database"})
+	}
+	defer db.Close(context.Background())
+
+	productID := c.Params("product_id")
+	var input struct {
+		Quantity int `json:"quantity"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	_, err = db.Exec(context.Background(),
+		"UPDATE products SET quantity=$1, updated_at=NOW() WHERE product_id=$2",
+		input.Quantity, productID,
+	)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Update failed"})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":   "Stock quantity updated",
+		"productID": productID,
+		"quantity":  input.Quantity,
+	})
+}
+
+// ====================
+// ลบสินค้า
+// ====================
+func DeleteStock(c *fiber.Ctx) error {
+	db, err := condb.DB_Lek()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to connect database"})
+	}
+	defer db.Close(context.Background())
+
+	productID := c.Params("product_id")
+	_, err = db.Exec(context.Background(), "DELETE FROM products WHERE product_id=$1", productID)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Delete failed"})
+	}
+
+	return c.JSON(fiber.Map{"message": "Product deleted", "productID": productID})
+}
+
+// ====================
+// อัปเดตสถานะสินค้าแนะนำ
+// ====================
+func UpdateRecommended(c *fiber.Ctx) error {
+	db, err := condb.DB_Lek()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to connect database"})
+	}
+	defer db.Close(context.Background())
+
+	productID := c.Params("product_id")
+	var input struct {
+		Recommended bool `json:"recommended"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	_, err = db.Exec(context.Background(),
+		`UPDATE products SET recommended=$1, updated_at=NOW() WHERE product_id=$2`,
+		input.Recommended, productID,
+	)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Update failed"})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":     "Product recommendation updated",
+		"productID":   productID,
+		"recommended": input.Recommended,
+	})
+}
+
+// ====================
+// ดึงรายการสินค้า (พร้อมกรองและจัดเรียง)
 // GET /products  (list + filter + sort + paginate)
+// ====================
+
 func GetProducts(c *fiber.Ctx) error {
 	page, _ := strconv.Atoi(c.Query("page", "1"))
 	limit, _ := strconv.Atoi(c.Query("limit", "16"))
@@ -123,8 +344,7 @@ SELECT
   p.quantity AS stock
 FROM products p
 WHERE ` + strings.Join(where, " AND ") + `
-` // GROUP BY ไม่จำเป็นเพราะไม่มี aggregate
-
+`
 	if inStock {
 		sql += " AND p.quantity > 0\n"
 	}
@@ -157,7 +377,7 @@ WHERE ` + strings.Join(where, " AND ") + `
 		items = append(items, p)
 	}
 
-	// นับ total ตาม WHERE เดียวกัน
+	// นับจำนวนทั้งหมด (total)
 	countSQL := `SELECT COUNT(*) FROM products p WHERE ` + strings.Join(where, " AND ")
 	if inStock {
 		countSQL += " AND p.quantity > 0"
@@ -170,7 +390,11 @@ WHERE ` + strings.Join(where, " AND ") + `
 	return c.JSON(ProductsListResp{Items: items, Total: total, Page: page, Limit: limit})
 }
 
+// ====================
+// ดึงข้อมูลสินค้ารายตัว (by ID or product_id)
 // GET /products/:id
+// ====================
+
 func GetProductByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 
@@ -207,7 +431,10 @@ WHERE p.product_id = $1 OR CAST(p.id AS TEXT) = $1
 	return c.JSON(p)
 }
 
-// GET /products/categories (facets)
+// ====================
+// ดึงข้อมูล facets สำหรับ filter
+// GET /products/facets
+// ====================
 func GetProductFacets(c *fiber.Ctx) error {
 	q := strings.TrimSpace(c.Query("q"))
 	categories := splitCSV(c.Query("categories"))
@@ -339,3 +566,44 @@ func splitCSV(s string) []string {
 	return out
 }
 func itoa(i int) string { return strconv.Itoa(i) }
+
+// ====================
+// อัปเดตสถานะสินค้าขายดี (popular)
+// ====================
+// ตัวอย่างการเรียก:
+//
+//	อัปเดตสินค้ารหัส "SKU1234" ให้เป็นสินค้าขายดี
+//
+//	PATCH /products/:product_id/popular
+//	body: { "popular": true }
+//
+// ====================
+func UpdatePopularFlag(c *fiber.Ctx) error {
+	db, err := condb.DB_Lek()
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to connect database"})
+	}
+	defer db.Close(context.Background())
+
+	productID := c.Params("product_id")
+	var input struct {
+		Popular bool `json:"popular"`
+	}
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Cannot parse JSON"})
+	}
+
+	_, err = db.Exec(context.Background(),
+		`UPDATE products SET popular=$1, updated_at=NOW() WHERE product_id=$2`,
+		input.Popular, productID,
+	)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Update failed"})
+	}
+
+	return c.JSON(fiber.Map{
+		"message":   "Product popular flag updated",
+		"productID": productID,
+		"popular":   input.Popular,
+	})
+}

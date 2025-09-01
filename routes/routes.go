@@ -3,6 +3,7 @@ package routes
 import (
 	"dog/controllers"
 	"dog/middleware"
+	"fmt"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -44,12 +45,13 @@ func RegisterRoutes(app *fiber.App) {
 	admin := app.Group("/admin")
 
 	// Stock & Products (หลังบ้าน)
-	admin.Get("/product", controllers.GetStock)
-	admin.Post("/product", controllers.AddStock)
-	admin.Put("/product/:product_id", controllers.UpdateStock)
-	admin.Patch("/product/:product_id/quantity", controllers.UpdateStockQuantity)
-	admin.Delete("/product/:product_id", controllers.DeleteStock)
+	admin.Get("/products", controllers.GetProducts)
+	admin.Post("/products", controllers.AddStock)
+	admin.Put("/products/:product_id", controllers.UpdateStock)
+	admin.Patch("/products/:product_id/quantity", controllers.UpdateStockQuantity)
+	admin.Delete("/products/:product_id", controllers.DeleteStock)
 	admin.Patch("/products/:product_id/popular", controllers.UpdatePopularFlag)
+	admin.Patch("/products/:product_id/recommended", controllers.UpdateRecommended)
 
 	// Employees (หลังบ้าน)
 	admin.Get("/employees", controllers.GetEmployees)
@@ -69,11 +71,11 @@ func RegisterRoutes(app *fiber.App) {
 	admin.Put("/customers/:customer_id", controllers.UpdateCustomer)
 
 	// ===== Debug routes (เปิดใช้ชั่วคราวเวลาตามหา 404) =====
-	// for _, r := range app.GetRoutes() {
-	// 	println(r.Method, r.Path)
-	// }
-	// app.Use(func(c *fiber.Ctx) error {
-	// 	fmt.Printf("NotFound -> %s %s\n", c.Method(), c.Path())
-	// 	return c.Status(404).JSON(fiber.Map{"error": "not found"})
-	// })
+	for _, r := range app.GetRoutes() {
+		println(r.Method, r.Path)
+	}
+	app.Use(func(c *fiber.Ctx) error {
+		fmt.Printf("NotFound -> %s %s\n", c.Method(), c.Path())
+		return c.Status(404).JSON(fiber.Map{"error": "not found"})
+	})
 }
