@@ -23,7 +23,6 @@ type ProductSearchResp struct {
 // ====================
 // ค้นหาสินค้า
 // ====================
-
 func SearchProducts(c *fiber.Ctx) error {
 	db, err := condb.DB_Lek()
 	if err != nil {
@@ -31,17 +30,16 @@ func SearchProducts(c *fiber.Ctx) error {
 	}
 	defer db.Close(context.Background())
 
-	// ===== Params =====
 	q := strings.TrimSpace(c.Query("q", ""))
 	brand := strings.TrimSpace(c.Query("brand", ""))
 	category := strings.TrimSpace(c.Query("category", ""))
 	gender := strings.TrimSpace(c.Query("gender", "")) // men|women|unisex
 
-	minPrice := c.Query("min_price", "")
-	maxPrice := c.Query("max_price", "")
+	minPrice := strings.TrimSpace(c.Query("min_price", ""))
+	maxPrice := strings.TrimSpace(c.Query("max_price", ""))
 
-	recommended := c.Query("recommended", "") // "true"|"false"|""(ignore)
-	popular := c.Query("popular", "")         // "true"|"false"|""(ignore)
+	recommended := c.Query("recommended", "")
+	popular := c.Query("popular", "")
 
 	sort := strings.ToLower(c.Query("sort", "new")) // new|price_asc|price_desc|name|sold_desc
 	page := c.QueryInt("page", 1)
@@ -54,14 +52,16 @@ func SearchProducts(c *fiber.Ctx) error {
 	}
 	offset := (page - 1) * limit
 
-	// ===== Build WHERE dynamically =====
 	clauses := []string{"1=1"}
 	args := []any{}
 	arg := 1
 
 	if q != "" {
-		// ชื่อ/แบรนด์/หมวด ค้นหาแบบ ILIKE
-		clauses = append(clauses, "(name ILIKE $"+strconv.Itoa(arg)+" OR brand ILIKE $"+strconv.Itoa(arg)+" OR category ILIKE $"+strconv.Itoa(arg)+")")
+
+		clauses = append(clauses,
+			"(COALESCE(name,'') ILIKE $"+strconv.Itoa(arg)+
+				" OR COALESCE(brand,'') ILIKE $"+strconv.Itoa(arg)+
+				" OR COALESCE(category,'') ILIKE $"+strconv.Itoa(arg)+")")
 		args = append(args, "%"+q+"%")
 		arg++
 	}
@@ -80,16 +80,18 @@ func SearchProducts(c *fiber.Ctx) error {
 		args = append(args, gender)
 		arg++
 	}
-	if minPrice != "" {
+
+	if v, ok := parseFloatSafe(minPrice); ok {
 		clauses = append(clauses, "sell_price >= $"+strconv.Itoa(arg))
-		args = append(args, toFloat(minPrice))
+		args = append(args, v)
 		arg++
 	}
-	if maxPrice != "" {
+	if v, ok := parseFloatSafe(maxPrice); ok {
 		clauses = append(clauses, "sell_price <= $"+strconv.Itoa(arg))
-		args = append(args, toFloat(maxPrice))
+		args = append(args, v)
 		arg++
 	}
+
 	if recommended == "true" {
 		clauses = append(clauses, "recommended = TRUE")
 	} else if recommended == "false" {
@@ -101,7 +103,6 @@ func SearchProducts(c *fiber.Ctx) error {
 		clauses = append(clauses, "popular = FALSE")
 	}
 
-	// ===== Sort =====
 	orderBy := "updated_at DESC"
 	switch sort {
 	case "price_asc":
@@ -111,15 +112,11 @@ func SearchProducts(c *fiber.Ctx) error {
 	case "name":
 		orderBy = "name ASC, updated_at DESC"
 	case "sold_desc":
-		// ถ้าต่อกับตารางยอดขายในอนาคต ให้เติม LEFT JOIN + ORDER BY sold DESC
-		orderBy = "updated_at DESC"
-	default:
 		orderBy = "updated_at DESC"
 	}
 
 	where := strings.Join(clauses, " AND ")
 
-	// ===== Query with window count =====
 	sql := `
 		SELECT
 			id, product_id, name, brand, category, gender,
@@ -141,7 +138,7 @@ func SearchProducts(c *fiber.Ctx) error {
 	defer rows.Close()
 
 	var items []models.Product
-	var total int64 = 0
+	var total int64
 	for rows.Next() {
 		var p models.Product
 		var t int64
@@ -171,6 +168,17 @@ func SearchProducts(c *fiber.Ctx) error {
 		Total:      total,
 		TotalPages: totalPages,
 	})
+}
+
+func parseFloatSafe(s string) (float64, bool) {
+	if strings.TrimSpace(s) == "" {
+		return 0, false
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0, false
+	}
+	return f, true
 }
 
 func toFloat(s string) float64 {
@@ -207,7 +215,7 @@ func GetStock(c *fiber.Ctx) error {
 }
 
 // ====================
-// ดึงสินค้าแนะนำ (มีอยู่แล้ว)
+// ดึงสินค้าแนะนำ
 // ====================
 func GetRecommendedProducts(c *fiber.Ctx) error {
 	db, err := condb.DB_Lek()

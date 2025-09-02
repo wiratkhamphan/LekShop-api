@@ -270,8 +270,8 @@ func GetProducts(c *fiber.Ctx) error {
 	categories := splitCSV(c.Query("categories"))
 	genders := splitCSV(c.Query("genders"))
 	brands := splitCSV(c.Query("brand"))
-	priceMin := c.Query("price_min")
-	priceMax := c.Query("price_max")
+	priceMin := strings.TrimSpace(c.Query("price_min"))
+	priceMax := strings.TrimSpace(c.Query("price_max"))
 	inStock := c.Query("in_stock") == "true"
 
 	where := []string{"1=1"}
@@ -279,7 +279,10 @@ func GetProducts(c *fiber.Ctx) error {
 	ai := 1
 
 	if q != "" {
-		where = append(where, "(p.name ILIKE $"+itoa(ai)+" OR p.brand ILIKE $"+itoa(ai)+" OR p.category ILIKE $"+itoa(ai)+")")
+		where = append(where,
+			"(COALESCE(p.name,'') ILIKE $"+itoa(ai)+
+				" OR COALESCE(p.brand,'') ILIKE $"+itoa(ai)+
+				" OR COALESCE(p.category,'') ILIKE $"+itoa(ai)+")")
 		args = append(args, "%"+q+"%")
 		ai++
 	}
@@ -298,19 +301,16 @@ func GetProducts(c *fiber.Ctx) error {
 		args = append(args, brands)
 		ai++
 	}
-	if priceMin != "" {
+	// ✅ เพิ่มเงื่อนไขราคาเฉพาะเมื่อ parse สำเร็จ
+	if v, ok := parseFloatSafe(priceMin); ok {
 		where = append(where, "p.sell_price >= $"+itoa(ai))
-		if v, err := strconv.ParseFloat(priceMin, 64); err == nil {
-			args = append(args, v)
-			ai++
-		}
+		args = append(args, v)
+		ai++
 	}
-	if priceMax != "" {
+	if v, ok := parseFloatSafe(priceMax); ok {
 		where = append(where, "p.sell_price <= $"+itoa(ai))
-		if v, err := strconv.ParseFloat(priceMax, 64); err == nil {
-			args = append(args, v)
-			ai++
-		}
+		args = append(args, v)
+		ai++
 	}
 
 	order := "p.popularity_score DESC, p.id DESC"
@@ -339,8 +339,8 @@ SELECT
     ELSE 0
   END AS discount_percent,
   COALESCE(p.image,'') AS image,
-  p.popularity_score,
-  to_char(p.created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS created_at,
+  p.popularity_score AS popularity, -- ✅ alias ให้ตรงฟิลด์สแกน
+  to_char(p.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at, -- ✅ เวลามาตรฐาน
   p.quantity AS stock
 FROM products p
 WHERE ` + strings.Join(where, " AND ") + `
@@ -377,12 +377,13 @@ WHERE ` + strings.Join(where, " AND ") + `
 		items = append(items, p)
 	}
 
-	// นับจำนวนทั้งหมด (total)
+	// total
 	countSQL := `SELECT COUNT(*) FROM products p WHERE ` + strings.Join(where, " AND ")
 	if inStock {
 		countSQL += " AND p.quantity > 0"
 	}
 	var total int
+	// ใช้เฉพาะ args เงื่อนไข (ก่อน offset/limit) → args[:ai-1]
 	if err := conn.QueryRow(context.Background(), countSQL, args[:ai-1]...).Scan(&total); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": err.Error()})
 	}
@@ -415,8 +416,8 @@ SELECT
     ELSE 0
   END AS discount_percent,
   COALESCE(p.image,'') AS image,
-  p.popularity_score,
-  to_char(p.created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') AS created_at,
+  p.popularity_score AS popularity,
+  to_char(p.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') AS created_at,
   p.quantity AS stock
 FROM products p
 WHERE p.product_id = $1 OR CAST(p.id AS TEXT) = $1
@@ -440,8 +441,8 @@ func GetProductFacets(c *fiber.Ctx) error {
 	categories := splitCSV(c.Query("categories"))
 	genders := splitCSV(c.Query("genders"))
 	brands := splitCSV(c.Query("brand"))
-	priceMin := c.Query("price_min")
-	priceMax := c.Query("price_max")
+	priceMin := strings.TrimSpace(c.Query("price_min"))
+	priceMax := strings.TrimSpace(c.Query("price_max"))
 	inStock := c.Query("in_stock") == "true"
 
 	where := []string{"1=1"}
@@ -449,7 +450,10 @@ func GetProductFacets(c *fiber.Ctx) error {
 	ai := 1
 
 	if q != "" {
-		where = append(where, "(name ILIKE $"+itoa(ai)+" OR brand ILIKE $"+itoa(ai)+" OR category ILIKE $"+itoa(ai)+")")
+		where = append(where,
+			"(COALESCE(name,'') ILIKE $"+itoa(ai)+
+				" OR COALESCE(brand,'') ILIKE $"+itoa(ai)+
+				" OR COALESCE(category,'') ILIKE $"+itoa(ai)+")")
 		args = append(args, "%"+q+"%")
 		ai++
 	}
@@ -468,19 +472,15 @@ func GetProductFacets(c *fiber.Ctx) error {
 		args = append(args, brands)
 		ai++
 	}
-	if priceMin != "" {
+	if v, ok := parseFloatSafe(priceMin); ok {
 		where = append(where, "sell_price >= $"+itoa(ai))
-		if v, err := strconv.ParseFloat(priceMin, 64); err == nil {
-			args = append(args, v)
-			ai++
-		}
+		args = append(args, v)
+		ai++
 	}
-	if priceMax != "" {
+	if v, ok := parseFloatSafe(priceMax); ok {
 		where = append(where, "sell_price <= $"+itoa(ai))
-		if v, err := strconv.ParseFloat(priceMax, 64); err == nil {
-			args = append(args, v)
-			ai++
-		}
+		args = append(args, v)
+		ai++
 	}
 	if inStock {
 		where = append(where, "quantity > 0")
@@ -501,7 +501,11 @@ func GetProductFacets(c *fiber.Ctx) error {
 	out := fiber.Map{}
 
 	// categories
-	rows, err := conn.Query(context.Background(), `SELECT category, COUNT(*) FROM products `+w+` GROUP BY category ORDER BY COUNT(*) DESC, category ASC`, args...)
+	rows, err := conn.Query(context.Background(),
+		`SELECT COALESCE(category,'') AS category, COUNT(*)
+		 FROM products `+w+`
+		 GROUP BY category
+		 ORDER BY COUNT(*) DESC, category ASC`, args...)
 	if err == nil {
 		var list []facet
 		for rows.Next() {
@@ -515,7 +519,11 @@ func GetProductFacets(c *fiber.Ctx) error {
 	}
 
 	// brands
-	rows, err = conn.Query(context.Background(), `SELECT brand, COUNT(*) FROM products `+w+` GROUP BY brand ORDER BY COUNT(*) DESC, brand ASC`, args...)
+	rows, err = conn.Query(context.Background(),
+		`SELECT COALESCE(brand,'') AS brand, COUNT(*)
+		 FROM products `+w+`
+		 GROUP BY brand
+		 ORDER BY COUNT(*) DESC, brand ASC`, args...)
 	if err == nil {
 		var list []facet
 		for rows.Next() {
@@ -529,7 +537,11 @@ func GetProductFacets(c *fiber.Ctx) error {
 	}
 
 	// genders
-	rows, err = conn.Query(context.Background(), `SELECT gender, COUNT(*) FROM products `+w+` GROUP BY gender ORDER BY COUNT(*) DESC, gender ASC`, args...)
+	rows, err = conn.Query(context.Background(),
+		`SELECT COALESCE(gender,'') AS gender, COUNT(*)
+		 FROM products `+w+`
+		 GROUP BY gender
+		 ORDER BY COUNT(*) DESC, gender ASC`, args...)
 	if err == nil {
 		var list []facet
 		for rows.Next() {
@@ -544,7 +556,9 @@ func GetProductFacets(c *fiber.Ctx) error {
 
 	// price range
 	var min, max *float64
-	_ = conn.QueryRow(context.Background(), `SELECT MIN(sell_price), MAX(sell_price) FROM products `+w, args...).Scan(&min, &max)
+	_ = conn.QueryRow(context.Background(),
+		`SELECT MIN(sell_price), MAX(sell_price) FROM products `+w, args...).
+		Scan(&min, &max)
 	out["price_range"] = fiber.Map{"min": min, "max": max}
 
 	return c.JSON(out)
