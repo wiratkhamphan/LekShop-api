@@ -17,11 +17,11 @@ func main() {
 	allow := os.Getenv("ALLOW_ORIGINS")
 	if strings.TrimSpace(allow) == "" {
 		// ค่า default สำหรับ dev
-		allow = "http://127.0.0.1:5500,http://localhost:5500,http://localhost:3000"
+		allow = "*"
 	}
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     allow, // คั่นด้วย comma
+		AllowOrigins:     allow, 
 		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		AllowHeaders:     "Origin, Content-Type, Accept, Authorization",
 		ExposeHeaders:    "Set-Cookie",
